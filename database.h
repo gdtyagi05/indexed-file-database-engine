@@ -3,6 +3,7 @@
 
 #include<iostream>
 #include<fstream>
+#include<string>
 #include<map>
 #include "record.h"
 
@@ -13,6 +14,7 @@ class Database {
         std :: fstream file;
         // The Index : Map ID-> byte location
         std :: map<int , std:: streampos> index;
+        void buildIndex();
 
     public:
 
@@ -27,9 +29,8 @@ class Database {
 
 
         void displayAll();
-        void buildIndex();
 
 
-}
+};
 
 #endif
