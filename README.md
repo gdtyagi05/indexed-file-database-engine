@@ -1,4 +1,4 @@
-* INDEXED FILE DATABASE ENGINE *     (STUDENT RMS) 
+ INDEXED FILE DATABASE ENGINE      (STUDENT RMS) 
 
 A high-performance, disk-based Student Record Management System (RMS) built in C++.
 Unlike traditional file-based systems that rely on full file scans or rewriting entire datasets, this engine leverages in-memory indexing and in-place binary updates to deliver efficient and scalable performance as data grows.
