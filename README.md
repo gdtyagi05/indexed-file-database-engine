@@ -109,4 +109,11 @@ This project demonstrates low-level storage optimization techniques inspired by 
 By combining binary storage, indexing, and direct file access, it provides a scalable and efficient alternative to traditional text-based record management systems.
 
 
+FUTURE SCOPE
+
+- Concept of mutex can be included to implement multithreading and allow concurrency.
+- B-Tree Indexing: Moving from a simple std::map to a disk-based B-Tree structure. This would allow the index itself to live on the disk, enabling the engine to manage millions of records without exhausting system RAM.
+  
+
+
   
