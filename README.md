@@ -1,4 +1,4 @@
-INDEXED FILE DATABASE ENGINE     (STUDENT RMS) 
+* INDEXED FILE DATABASE ENGINE *     (STUDENT RMS) 
 
 A high-performance, disk-based Student Record Management System (RMS) built in C++.
 Unlike traditional file-based systems that rely on full file scans or rewriting entire datasets, this engine leverages in-memory indexing and in-place binary updates to deliver efficient and scalable performance as data grows.
@@ -109,10 +109,16 @@ This project demonstrates low-level storage optimization techniques inspired by 
 By combining binary storage, indexing, and direct file access, it provides a scalable and efficient alternative to traditional text-based record management systems.
 
 
-FUTURE SCOPE
+ FUTURE SCOPE
 
-- Concept of mutex can be included to implement multithreading and allow concurrency.
-- B-Tree Indexing: Moving from a simple std::map to a disk-based B-Tree structure. This would allow the index itself to live on the disk, enabling the engine to manage millions of records without exhausting system RAM.
+To evolve this project into a production-grade storage engine, the next phase of development involves moving toward a multi-threaded, disk-aware architecture.
+
+* Concurrency & Multithreading: Implementing `std::mutex` and reader-writer locks to allow multiple threads to read data simultaneously while maintaining strict data integrity during writes.
+* Disk-Based B-Tree Indexing: Moving from an in-memory `std::map` to a disk-based B-Tree structure. This will allow the index itself to live on the disk, enabling the engine to scale to millions of records without exhausting system RAM.
+
+
+
+
   
 
 
