@@ -3,7 +3,7 @@
 #include <iomanip>
 #include <cstring>
 #include <stdexcept>
-#include <cstdio> // Required for std::remove and std::rename
+#include <cstdio> 
 
 // Constructor: Handles file creation and initial indexing
 Database::Database(std::string name) : fileName(name) {
@@ -25,17 +25,18 @@ Database::Database(std::string name) : fileName(name) {
 // THE ENGINE: Scans the disk to build the RAM-based Offset Map
 void Database::buildIndex() {
     index.clear();
+    file.clear(); // Clear any existing stream state flags before seeking
     file.seekg(0, std::ios::beg);
 
     Student s;
     while (file.read(reinterpret_cast<char*>(&s), sizeof(Student))) {
-        std::streampos pos = file.tellg() - (std::streamoff)sizeof(Student);
+        std::streampos pos = file.tellg() - static_cast<std::streamoff>(sizeof(Student));
         
         if (!s.isDeleted) {
             index[s.id] = pos;
         }
     }
-    file.clear(); 
+    file.clear(); // Clear EOF flag set by the sequential scanning loop
 }
 
 // CREATE: Includes Duplicate ID check
@@ -45,6 +46,7 @@ bool Database::addStudent(const Student& s) {
         return false;
     }
 
+    file.clear();
     file.seekp(0, std::ios::end);
     std::streampos pos = file.tellp();
 
@@ -58,83 +60,99 @@ bool Database::addStudent(const Student& s) {
 
 // READ: O(log n) Instant Search
 bool Database::getStudent(int id, Student& result) {
-    if (index.find(id) == index.end()) return false;
+    auto it = index.find(id);
+    if (it == index.end()) return false;
 
-    file.seekg(index[id], std::ios::beg);
-    file.read(reinterpret_cast<char*>(&result), sizeof(Student));
-    return true;
+    file.clear();
+    file.seekg(it->second, std::ios::beg);
+    if (file.read(reinterpret_cast<char*>(&result), sizeof(Student))) {
+        return true;
+    }
+    return false;
 }
 
 // UPDATE: In-Place Binary Overwrite
 bool Database::updateMarks(int id, double newMarks) {
-    if (index.find(id) == index.end()) return false;
+    auto it = index.find(id);
+    if (it == index.end()) return false;
 
-    std::streampos pos = index[id];
+    std::streampos pos = it->second;
     Student s;
     
+    file.clear();
     file.seekg(pos, std::ios::beg);
-    file.read(reinterpret_cast<char*>(&s), sizeof(Student));
+    if (!file.read(reinterpret_cast<char*>(&s), sizeof(Student))) return false;
     
     s.marks = newMarks;
 
     file.seekp(pos, std::ios::beg);
-    file.write(reinterpret_cast<char*>(&s), sizeof(Student));
-    file.flush();
-    return true;
+    if (file.write(reinterpret_cast<const char*>(&s), sizeof(Student))) {
+        file.flush();
+        return true;
+    }
+    return false;
 }
 
 // DELETE: Soft Delete (Efficiency O(1))
 bool Database::deleteStudent(int id) {
-    if (index.find(id) == index.end()) return false;
+    auto it = index.find(id);
+    if (it == index.end()) return false;
 
-    std::streampos pos = index[id];
+    std::streampos pos = it->second;
     Student s;
 
+    file.clear();
     file.seekg(pos, std::ios::beg);
-    file.read(reinterpret_cast<char*>(&s), sizeof(Student));
+    if (!file.read(reinterpret_cast<char*>(&s), sizeof(Student))) return false;
 
     s.isDeleted = true; 
 
     file.seekp(pos, std::ios::beg);
-    file.write(reinterpret_cast<char*>(&s), sizeof(Student));
-    file.flush();
-
-    index.erase(id); 
-    return true;
+    if (file.write(reinterpret_cast<const char*>(&s), sizeof(Student))) {
+        file.flush();
+        index.erase(it); // Erase using iterator for optimal performance
+        return true;
+    }
+    return false;
 }
 
-// NEW MAINTENANCE: Physically removes deleted records
+// MAINTENANCE: Physically removes deleted records safely
 void Database::compact() {
     if (index.empty()) return;
 
     std::string tempName = "temp_" + fileName;
     std::ofstream tempFile(tempName, std::ios::binary);
     
-    if (!tempFile.is_open()) return;
+    if (!tempFile.is_open()) {
+        std::cerr << "Maintenance Error: Compaction failed to initialize temporary storage.\n";
+        return;
+    }
 
     std::map<int, std::streampos> newIndex;
+    file.clear(); // Critical state-reset before processing seeks
 
-    // Use an iterator to avoid "id" and "pos" being undefined
     for (auto it = index.begin(); it != index.end(); ++it) {
         int id = it->first;
         std::streampos oldPos = it->second;
 
         Student s;
         file.seekg(oldPos, std::ios::beg);
-        file.read(reinterpret_cast<char*>(&s), sizeof(Student));
-
-        std::streampos newPos = tempFile.tellp();
-        tempFile.write(reinterpret_cast<char*>(&s), sizeof(Student));
-        
-        newIndex[id] = newPos; 
+        if (file.read(reinterpret_cast<char*>(&s), sizeof(Student))) {
+            std::streampos newPos = tempFile.tellp();
+            if (tempFile.write(reinterpret_cast<const char*>(&s), sizeof(Student))) {
+                newIndex[id] = newPos; 
+            }
+        }
     }
 
     tempFile.close();
     file.close();
 
+    // Atomic Filesystem Swap Operations
     std::remove(fileName.c_str());
     std::rename(tempName.c_str(), fileName.c_str());
 
+    // Re-establish primary engine data streams
     file.open(fileName, std::ios::in | std::ios::out | std::ios::binary);
     index = newIndex;
 }
@@ -152,17 +170,17 @@ void Database::displayAll() {
               << "Marks" << std::endl;
     std::cout << std::string(65, '=') << std::endl;
     
-    // Changing the loop to use 'it' prevents the undefined error
+    file.clear();
     for (auto it = index.begin(); it != index.end(); ++it) {
         std::streampos pos = it->second;
         Student s;
         file.seekg(pos, std::ios::beg);
-        file.read(reinterpret_cast<char*>(&s), sizeof(Student));
-        
-        std::cout << std::left << std::setw(10) << s.id 
-                  << std::setw(20) << s.name 
-                  << std::setw(25) << s.email 
-                  << s.marks << std::endl;
+        if (file.read(reinterpret_cast<char*>(&s), sizeof(Student))) {
+            std::cout << std::left << std::setw(10) << s.id 
+                      << std::setw(20) << s.name 
+                      << std::setw(25) << s.email 
+                      << s.marks << std::endl;
+        }
     }
 }
 
