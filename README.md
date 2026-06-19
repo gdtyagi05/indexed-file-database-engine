@@ -111,10 +111,23 @@ By combining binary storage, indexing, and direct file access, it provides a sca
 
  FUTURE SCOPE
 
-To evolve this project into a production-grade storage engine, the next phase of development involves moving toward a multi-threaded, disk-aware architecture.
+Phase 2: Multi-Threaded Concurrency (Isolation & Integrity)
 
-* Concurrency & Multithreading: Implementing `std::mutex` and reader-writer locks to allow multiple threads to read data simultaneously while maintaining strict data integrity during writes.
-* Disk-Based B-Tree Indexing: Moving from an in-memory `std::map` to a disk-based B-Tree structure. This will allow the index itself to live on the disk, enabling the engine to scale to millions of records without exhausting system RAM.
+ The current engine handles single-threaded operations perfectly but will experience data corruption under concurrent client loads.
+- Reader-Writer Locks (std::shared_mutex): Implement a shared-read, exclusive-write locking mechanism. This allows thousands of concurrent clients to execute getStudent() simultaneously (O(log n)shared access) while strictly blocking the engine during an addStudent() or updateMarks() write barrier.
+- Thread-Safe Index Mutations: Ensure that memory allocation changes inside the primary RAM index map are atomic during concurrent deletions and insertions
+
+Phase 3: Disk-Aware Scaling (Breaking the RAM Barrier)
+
+Currently, keeping the entire primary index map in volatile memory creates an O(n) memory footprint bottleneck. At 100 million records, system RAM will exhaust.
+- Disk-Based B+ Tree Indexing: Replace std::map with a custom disk-backed B+ Tree structure. By storing internal routing nodes in memory and leaf data node pointers on disk blocks, the engine can scale to billions of records while keeping RAM usage completely flat and bounded.
+- Write-Ahead Logging (WAL) & Durability: Introduce a sequential append-only log file. Every write operation will be recorded to the WAL before mutating the main database file, ensuring complete data recovery and ACID compliance in the event of an abrupt system power failure or crash.
+
+Phase 4: Decentralized Architecture (TELEMETRIC DBaaS)
+
+Decouple the storage sub-system entirely from the local terminal interface to expose it as a high-throughput network or local daemon service.
+- Low-Latency IPC Bridge via Named Pipes: Build a multi-process architecture where a high-throughput Node.js/Express API gateway communicates with the native C++ binary engine across an OS-level Named Pipe (FIFO), eliminating TCP/IP network protocol stack overhead for localized execution.
+- Real-Time Telemetric Analytics Dashboard: Mount a frontend UI tracking database storage health metrics (compaction cycles, raw fragmentation ratios, live query throughput, and read/write latencies measured down to the sub-millisecond).
 
 
 
